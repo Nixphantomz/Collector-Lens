@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount } from "wagmi";
+import { Web3Providers } from "./providers";
 
 interface AnalysisResult {
   identified: boolean;
@@ -19,6 +22,12 @@ interface AnalysisResult {
   keyFactors: string[];
   similarSales: { description: string; price: number; timeAgo: string }[];
   confidenceScore: number;
+  sources?: { name: string; url?: string }[];
+  searchQuery?: string;
+  dataNote?: string;
+  year?: string;
+  brand?: string;
+  webSearchUsed?: boolean;
   error?: string;
 }
 
@@ -37,40 +46,40 @@ const TREND = {
 const FEATURES = [
   {
     icon: "◈",
-    title: "Instant Identification",
-    desc: "Upload any photo and get the item name, category, and full description in seconds.",
+    title: "Physical & Digital Collectibles",
+    desc: "Scan trading cards, memorabilia, vintage toys, coins — or NFT and SBT artwork. One tool for the full collector economy.",
   },
   {
     icon: "◎",
-    title: "Market Valuation",
-    desc: "Get a realistic low, mid, and high price range based on current collector market data.",
+    title: "Real Market Valuation",
+    desc: "Live web search pulls actual sold prices from eBay, StockX, OpenSea, and auction houses — not guesses.",
   },
   {
     icon: "◆",
     title: "Buy / Hold / Sell Signal",
-    desc: "AI-powered signals with analyst reasoning to help you make smarter collector decisions.",
+    desc: "AI-powered signals with cited reasoning to help you make smarter decisions on any collectible.",
   },
   {
     icon: "◐",
     title: "Rarity & Condition Grade",
-    desc: "Understand where your item sits on the rarity spectrum and how condition affects value.",
+    desc: "Understand where your item sits on the rarity spectrum and how condition or trait rarity affects its value.",
   },
   {
     icon: "◑",
-    title: "Market Trend Tracking",
-    desc: "See if a collectible's market is rising, stable, or declining before you buy or sell.",
+    title: "Onchain Collectible Support",
+    desc: "Identify NFTs, SBTs, and tokenized collectibles from their artwork and get market context from onchain data.",
   },
   {
     icon: "◒",
-    title: "Similar Sales",
-    desc: "Comparable recent transactions give you real context on what collectors are actually paying.",
+    title: "Sourced Analysis",
+    desc: "Every valuation cites its sources — real listings, auction results, and market indexes — so you can verify.",
   },
 ];
 
 const STATS = [
-  { value: "8+", label: "Collectible Categories" },
-  { value: "AI", label: "Gemini Vision Powered" },
-  { value: "< 5s", label: "Analysis Time" },
+  { value: "10+", label: "Collectible Categories" },
+  { value: "Web3", label: "NFT & SBT Support" },
+  { value: "< 15s", label: "Analysis Time" },
   { value: "Free", label: "No Cost to Use" },
 ];
 
@@ -170,8 +179,7 @@ function ScanOverlay() {
 }
 
 /* ── Main ── */
-export default function Home() {
-  const [dark, setDark] = useState(true);
+function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean) => boolean) => void }) {
   const [image, setImage] = useState<string | null>(null);
   const [imageMime, setImageMime] = useState("image/jpeg");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -275,14 +283,19 @@ export default function Home() {
           }}>
             Try it →
           </button>
-          <div style={{
+          <div className="renaiss-badge" style={{
             fontSize: 11, color: "var(--accent)", padding: "5px 12px",
             border: "1px solid var(--accent-dim)", borderRadius: 20,
             letterSpacing: "0.07em", fontWeight: 600,
             background: "var(--accent-glow)",
           }}>
-            RENAISS S1
+            WEB3 + AI
           </div>
+          <ConnectButton
+            showBalance={false}
+            chainStatus="none"
+            accountStatus="avatar"
+          />
           <ThemeToggle dark={dark} onToggle={() => setDark(d => !d)} />
         </div>
       </header>
@@ -323,7 +336,7 @@ export default function Home() {
               background: "var(--green)", display: "inline-block",
               boxShadow: "0 0 6px var(--green)",
             }} />
-            Built for Renaiss Tech Hackathon S1 · AI Track
+            Physical & Onchain Collectible Intelligence
           </div>
 
           {/* Headline */}
@@ -345,11 +358,11 @@ export default function Home() {
             fontSize: 18, color: "var(--text-2)", lineHeight: 1.7,
             maxWidth: 520, margin: "0 auto 40px",
           }}>
-            Drop any collectible photo — trading cards, memorabilia, toys, coins — and get instant AI-powered identification, valuation, and a buy/hold/sell signal.
+            Drop any collectible photo — trading cards, memorabilia, coins, NFTs, or SBTs — and get instant AI-powered identification, real market valuation, and a buy/hold/sell signal.
           </p>
 
           {/* CTAs */}
-          <div className="fade-in" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+          <div className="fade-in hero-ctas" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
             <button
               onClick={scrollToApp}
               className="btn-primary"
@@ -358,7 +371,7 @@ export default function Home() {
               Scan a Collectible →
             </button>
             <a
-              href="https://renaiss.io"
+              href="https://github.com"
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -368,7 +381,7 @@ export default function Home() {
                 transition: "color 0.15s, border-color 0.15s",
               }}
             >
-              Learn about Renaiss
+              View on GitHub →
             </a>
           </div>
 
@@ -393,7 +406,7 @@ export default function Home() {
           maxWidth: 800, margin: "0 auto",
           display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
           gap: 0,
-        }}>
+        }} className="stats-grid">
           {STATS.map((s, i) => (
             <div key={s.label} style={{
               textAlign: "center",
@@ -428,7 +441,7 @@ export default function Home() {
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 16,
-        }}>
+        }} className="features-grid">
           {FEATURES.map((f) => (
             <div key={f.title} className="card" style={{ padding: "24px" }}>
               <div style={{
@@ -472,7 +485,7 @@ export default function Home() {
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             {[
               { step: "01", title: "Upload a photo", desc: "Drag and drop or browse any image of your collectible — card, toy, coin, or memorabilia." },
-              { step: "02", title: "AI scans and identifies", desc: "Gemini Vision AI analyses the image, identifies the item, and cross-references market data." },
+              { step: "02", title: "AI scans and identifies", desc: "AI vision analyses the image, identifies the item, and runs a live web search for real sold prices and market data." },
               { step: "03", title: "Get your analysis", desc: "Instant valuation, condition grade, rarity score, market trend, and a buy/hold/sell signal." },
             ].map((item, i, arr) => (
               <div key={item.step} style={{ display: "flex", gap: 24, alignItems: "flex-start", position: "relative" }}>
@@ -525,7 +538,7 @@ export default function Home() {
           </h2>
         </div>
 
-        <div style={{
+        <div className="app-grid" style={{
           maxWidth: 1020, margin: "0 auto",
           display: "grid",
           gridTemplateColumns: result || loading ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0, 560px)",
@@ -566,7 +579,7 @@ export default function Home() {
                     JPG, PNG, or WEBP · any collectible type
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
-                    {["Trading Cards","Memorabilia","Toys","Coins","Comics","Sneakers"].map(c => (
+                    {["Trading Cards","NFTs","SBTs","Memorabilia","Coins","Sneakers"].map(c => (
                       <span key={c} className="category-pill" style={{ fontSize: 11 }}>{c}</span>
                     ))}
                   </div>
@@ -774,6 +787,50 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* Sources */}
+                  {result.sources && result.sources.length > 0 && (
+                    <div className="card">
+                      <div className="eyebrow" style={{ marginBottom: 12 }}>Data sources</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        {result.sources.map((s: { name: string; url?: string }, i: number) => (
+                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{
+                              width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                              background: "var(--accent)",
+                            }} />
+                            {s.url ? (
+                              <a href={s.url} target="_blank" rel="noopener noreferrer" style={{
+                                fontSize: 12, color: "var(--violet)", textDecoration: "none",
+                              }}>
+                                {s.name} ↗
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: 12, color: "var(--text-2)" }}>{s.name}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {result.dataNote && (
+                        <div style={{
+                          marginTop: 10, padding: "8px 12px", borderRadius: 8,
+                          background: "var(--green-bg)", border: "1px solid var(--green-bd)",
+                          fontSize: 11, color: "var(--green)",
+                        }}>
+                          ✓ {result.dataNote}
+                        </div>
+                      )}
+                      {result.searchQuery && (
+                        <div style={{
+                          marginTop: 8, padding: "8px 12px", borderRadius: 8,
+                          background: "var(--surface-2)", border: "1px solid var(--border)",
+                          fontSize: 11, color: "var(--text-3)", fontFamily: "monospace",
+                        }}>
+                          🔍 {result.searchQuery}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <button className="btn-ghost" onClick={reset} style={{ width: "100%", marginTop: 4 }}>
                     ← Scan another item
                   </button>
@@ -794,7 +851,7 @@ export default function Home() {
           maxWidth: 1020, margin: "0 auto",
           display: "flex", justifyContent: "space-between", alignItems: "center",
           flexWrap: "wrap", gap: 16,
-        }}>
+        }} className="footer-inner">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
               width: 28, height: 28, borderRadius: 7,
@@ -805,7 +862,7 @@ export default function Home() {
             <span style={{ fontWeight: 700, fontSize: 13, color: "var(--text-1)" }}>Collector Lens</span>
           </div>
           <div style={{ fontSize: 11, color: "var(--text-3)", letterSpacing: "0.04em", textAlign: "center" }}>
-            RENAISS TECH HACKATHON S1 · AI TRACK · POWERED BY GEMINI AI
+            PHYSICAL & ONCHAIN COLLECTIBLE INTELLIGENCE · BUILT WITH GROQ + TAVILY
           </div>
           <div style={{ fontSize: 11, color: "var(--text-3)" }}>
             © 2026 Collector Lens
@@ -820,5 +877,14 @@ export default function Home() {
         }
       `}</style>
     </main>
+  );
+}
+
+export default function Home() {
+  const [dark, setDark] = useState(true);
+  return (
+    <Web3Providers isDark={dark}>
+      <HomeInner dark={dark} setDark={setDark} />
+    </Web3Providers>
   );
 }
