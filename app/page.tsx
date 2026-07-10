@@ -3,6 +3,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Web3Providers } from "./providers";
+import ScanHistory from "./components/ScanHistory";
+import { saveScan } from "./lib/supabase";
 
 interface AnalysisResult {
   identified: boolean;
@@ -233,6 +235,29 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setResult(data);
+
+      // Save to scan history if user is authenticated
+      if (authenticated && user) {
+        const userId = user.wallet?.address || user.email?.address || user.id;
+        if (userId) {
+          await saveScan({
+            user_id: userId,
+            item_name: data.name,
+            category: data.category,
+            condition: data.condition,
+            estimated_value_low: data.estimatedValue?.low ?? 0,
+            estimated_value_mid: data.estimatedValue?.mid ?? 0,
+            estimated_value_high: data.estimatedValue?.high ?? 0,
+            signal: data.signal,
+            rarity: data.rarity,
+            rarity_score: data.rarityScore,
+            market_trend: data.marketTrend,
+            confidence_score: data.confidenceScore,
+            description: data.description,
+            signal_reason: data.signalReason,
+          });
+        }
+      }
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
@@ -942,6 +967,13 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
           50% { transform: translateY(6px); }
         }
       `}</style>
+
+      {/* Scan History Drawer */}
+      {authenticated && user && (
+        <ScanHistory
+          userId={user.wallet?.address || user.email?.address || user.id || ''}
+        />
+      )}
     </main>
   );
 }
