@@ -1,12 +1,6 @@
 'use client';
 
-import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit';
-import { WagmiProvider } from 'wagmi';
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import { config } from './web3config';
-import '@rainbow-me/rainbowkit/styles.css';
-
-const queryClient = new QueryClient();
+import { PrivyProvider } from '@privy-io/react-auth';
 
 export function Web3Providers({
   children,
@@ -16,28 +10,44 @@ export function Web3Providers({
   isDark: boolean;
 }) {
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          theme={
-            isDark
-              ? darkTheme({
-                  accentColor: '#dddae8',
-                  accentColorForeground: '#08080f',
-                  borderRadius: 'medium',
-                  fontStack: 'system',
-                })
-              : lightTheme({
-                  accentColor: '#4a4868',
-                  accentColorForeground: '#ffffff',
-                  borderRadius: 'medium',
-                  fontStack: 'system',
-                })
-          }
-        >
-          {children}
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <PrivyProvider
+      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || "clwrqiqpv00h4l70fkbj2k8h9"}
+      config={{
+        appearance: {
+          theme: isDark ? 'dark' : 'light',
+          accentColor: isDark ? '#dddae8' : '#4a4868',
+          logo: undefined,
+          showWalletLoginFirst: false,
+        },
+        loginMethods: ['wallet', 'google', 'email'],
+        embeddedWallets: {
+          ethereum: { createOnLogin: 'users-without-wallets' },
+        },
+        defaultChain: {
+          id: 56,
+          name: 'BNB Smart Chain',
+          network: 'bsc',
+          nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+          rpcUrls: {
+            default: { http: ['https://bsc-dataseed.binance.org'] },
+            public: { http: ['https://bsc-dataseed.binance.org'] },
+          },
+        },
+        supportedChains: [
+          {
+            id: 56,
+            name: 'BNB Smart Chain',
+            network: 'bsc',
+            nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+            rpcUrls: {
+              default: { http: ['https://bsc-dataseed.binance.org'] },
+              public: { http: ['https://bsc-dataseed.binance.org'] },
+            },
+          },
+        ],
+      }}
+    >
+      {children}
+    </PrivyProvider>
   );
 }

@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount } from "wagmi";
+import { usePrivy } from "@privy-io/react-auth";
 import { Web3Providers } from "./providers";
 
 interface AnalysisResult {
@@ -180,6 +179,7 @@ function ScanOverlay() {
 
 /* ── Main ── */
 function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean) => boolean) => void }) {
+  const { ready, authenticated, user, login, logout } = usePrivy();
   const [image, setImage] = useState<string | null>(null);
   const [imageMime, setImageMime] = useState("image/jpeg");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -291,11 +291,34 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
           }}>
             WEB3 + AI
           </div>
-          <ConnectButton
-            showBalance={false}
-            chainStatus="none"
-            accountStatus="avatar"
-          />
+          {ready && (
+            authenticated ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  fontSize: 12, color: "var(--text-2)",
+                  maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {user?.email?.address || user?.wallet?.address?.slice(0,6) + "..." + user?.wallet?.address?.slice(-4) || "Connected"}
+                </div>
+                <button onClick={logout} style={{
+                  fontSize: 11, color: "var(--text-3)", padding: "5px 12px",
+                  background: "var(--surface-2)", border: "1px solid var(--border)",
+                  borderRadius: 20, cursor: "pointer", letterSpacing: "0.05em",
+                }}>
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <button onClick={login} style={{
+                fontSize: 12, fontWeight: 700, color: "var(--bg)",
+                padding: "8px 16px", borderRadius: 20,
+                background: "var(--accent)", border: "none",
+                cursor: "pointer", letterSpacing: "0.03em",
+              }}>
+                Sign in
+              </button>
+            )
+          )}
           <ThemeToggle dark={dark} onToggle={() => setDark(d => !d)} />
         </div>
       </header>
@@ -364,11 +387,11 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
           {/* CTAs */}
           <div className="fade-in hero-ctas" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
             <button
-              onClick={scrollToApp}
+              onClick={() => { if (authenticated) { scrollToApp(); } else { login(); } }}
               className="btn-primary"
               style={{ fontSize: 15, padding: "14px 32px", borderRadius: 10 }}
             >
-              Scan a Collectible →
+              {authenticated ? "Scan a Collectible →" : "Get Started →"}
             </button>
             <a
               href="https://github.com"
@@ -538,7 +561,50 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
           </h2>
         </div>
 
-        <div className="app-grid" style={{
+        {/* Auth gate */}
+        {ready && !authenticated && (
+          <div style={{
+            maxWidth: 480, margin: "0 auto 48px", textAlign: "center",
+            padding: "40px 32px", borderRadius: 20,
+            background: "var(--surface)", border: "1px solid var(--border)",
+          }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 16, margin: "0 auto 20px",
+              background: "var(--surface-2)", border: "1px solid var(--border)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 24,
+            }}>🔒</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-1)", marginBottom: 10, letterSpacing: "-0.03em" }}>
+              Sign in to scan
+            </div>
+            <div style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.65, marginBottom: 24 }}>
+              Connect your wallet or sign in with Google or email to access the scanner and save your scan history.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <button onClick={login} style={{
+                padding: "12px 28px", borderRadius: 10,
+                background: "var(--accent)", border: "none",
+                color: "var(--bg)", fontWeight: 700, fontSize: 14,
+                cursor: "pointer",
+              }}>
+                Connect Wallet
+              </button>
+              <button onClick={login} style={{
+                padding: "12px 22px", borderRadius: 10,
+                background: "var(--surface-2)", border: "1px solid var(--border)",
+                color: "var(--text-2)", fontWeight: 600, fontSize: 13,
+                cursor: "pointer",
+              }}>
+                Sign in with Google
+              </button>
+            </div>
+            <div style={{ marginTop: 16, fontSize: 11, color: "var(--text-3)" }}>
+              Wallet · Google · Email — all supported
+            </div>
+          </div>
+        )}
+
+        {ready && authenticated && <div className="app-grid" style={{
           maxWidth: 1020, margin: "0 auto",
           display: "grid",
           gridTemplateColumns: result || loading ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0, 560px)",
@@ -838,7 +904,7 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
               )}
             </div>
           )}
-        </div>
+        </div>}
       </section>
 
       {/* ── Footer ── */}
