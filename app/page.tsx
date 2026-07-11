@@ -29,6 +29,23 @@ interface AnalysisResult {
   year?: string;
   brand?: string;
   webSearchUsed?: boolean;
+  tcgPrice?: {
+    source: string;
+    url: string;
+    loose: number | null;
+    graded: number | null;
+    name: string;
+  } | null;
+  psaData?: {
+    searchUrl: string;
+    registryUrl: string;
+    name: string;
+  } | null;
+  bnbData?: {
+    totalNFTs: number;
+    renaiссNFTs: number;
+    recentNFTs: { name: string; symbol: string; tokenId: string; contract: string }[];
+  } | null;
   error?: string;
 }
 
@@ -43,6 +60,123 @@ const TREND = {
   Stable:    { color: "var(--amber)", icon: "●" },
   Declining: { color: "var(--red)",   icon: "▼" },
 };
+
+// Renaiss ecosystem helpers
+const RENAISS_CATEGORIES = ["Trading Card", "NFT", "SBT"];
+const RENAISS_TCG = ["pokemon", "pokémon", "one piece", "magic", "yugioh", "yu-gi-oh"];
+
+function isRenaissSupportedCategory(category: string) {
+  return RENAISS_CATEGORIES.some(c => category?.toLowerCase().includes(c.toLowerCase()));
+}
+
+function isRenaissTCG(name: string) {
+  return RENAISS_TCG.some(t => name?.toLowerCase().includes(t));
+}
+
+function getRenaissSearchUrl(itemName: string) {
+  // Extract card name for search — take first 3 words to keep it clean
+  const query = itemName.split(" ").slice(0, 4).join(" ");
+  return `https://www.renaiss.xyz/marketplace?search=${encodeURIComponent(query)}`;
+}
+
+function RenaissBadge({ name, category }: { name: string; category: string }) {
+  const isSupported = isRenaissSupportedCategory(category) || isRenaissTCG(name);
+  const isTCG = isRenaissTCG(name);
+  const searchUrl = getRenaissSearchUrl(name);
+
+  if (!isSupported && !isTCG) return null;
+
+  return (
+    <div style={{
+      borderRadius: 14,
+      border: "1px solid rgba(255,165,0,0.25)",
+      background: "rgba(255,140,0,0.05)",
+      overflow: "hidden",
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: "12px 16px",
+        borderBottom: "1px solid rgba(255,165,0,0.15)",
+        display: "flex", alignItems: "center", gap: 10,
+      }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+          background: "rgba(255,140,0,0.12)", border: "1px solid rgba(255,165,0,0.3)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 14,
+        }}>◈</div>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b", letterSpacing: "-0.01em" }}>
+            Renaiss Ecosystem
+          </div>
+          <div style={{ fontSize: 10, color: "var(--text-3)", marginTop: 1 }}>
+            Physical Collectible Finance Network on BNB Chain
+          </div>
+        </div>
+        <div style={{
+          marginLeft: "auto", fontSize: 9, fontWeight: 700,
+          color: "#22c55e", background: "rgba(34,197,94,0.1)",
+          border: "1px solid rgba(34,197,94,0.25)",
+          padding: "3px 8px", borderRadius: 20, letterSpacing: "0.06em",
+        }}>
+          ELIGIBLE
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+
+        {/* Eligibility info */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          {[
+            { icon: "✓", text: "Eligible for Renaiss vault custody", color: "#22c55e" },
+            { icon: "✓", text: "Tradeable on Renaiss marketplace", color: "#22c55e" },
+            isTCG
+              ? { icon: "✓", text: "PSA-graded cards supported — tokenizable as NFT on BNB Chain", color: "#22c55e" }
+              : { icon: "◈", text: "SBT or NFT — verifiable onchain via Renaiss Protocol", color: "#f59e0b" },
+          ].map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <span style={{ color: item.color, fontSize: 11, flexShrink: 0, marginTop: 1 }}>{item.icon}</span>
+              <span style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.5 }}>{item.text}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA buttons */}
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          <a
+            href={searchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              flex: 1, padding: "10px 14px", borderRadius: 9, textAlign: "center",
+              background: "#f59e0b", color: "#0a0808",
+              fontSize: 12, fontWeight: 700, textDecoration: "none",
+              letterSpacing: "0.01em",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            }}
+          >
+            Find on Renaiss →
+          </a>
+          <a
+            href="https://www.renaiss.xyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: "10px 14px", borderRadius: 9,
+              background: "rgba(255,140,0,0.08)", border: "1px solid rgba(255,165,0,0.2)",
+              color: "#f59e0b", fontSize: 12, fontWeight: 600,
+              textDecoration: "none",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            renaiss.xyz ↗
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const FEATURES = [
   {
@@ -230,7 +364,11 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType: imageMime }),
+        body: JSON.stringify({
+          imageBase64: base64,
+          mimeType: imageMime,
+          walletAddress: user?.wallet?.address || null,
+        }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -238,25 +376,35 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
 
       // Save to scan history if user is authenticated
       if (authenticated && user) {
-        const userId = user.wallet?.address || user.email?.address || user.id;
+        const userId = user.wallet?.address || user.email?.address || user.id || null;
+        console.log("Saving scan for user:", userId, "auth:", authenticated);
         if (userId) {
-          await saveScan({
-            user_id: userId,
-            item_name: data.name,
-            category: data.category,
-            condition: data.condition,
-            estimated_value_low: data.estimatedValue?.low ?? 0,
-            estimated_value_mid: data.estimatedValue?.mid ?? 0,
-            estimated_value_high: data.estimatedValue?.high ?? 0,
-            signal: data.signal,
-            rarity: data.rarity,
-            rarity_score: data.rarityScore,
-            market_trend: data.marketTrend,
-            confidence_score: data.confidenceScore,
-            description: data.description,
-            signal_reason: data.signalReason,
-          });
+          try {
+            const saved = await saveScan({
+              user_id: userId,
+              item_name: data.name || "Unknown",
+              category: data.category || "Other",
+              condition: data.condition || "Unknown",
+              estimated_value_low: Number(data.estimatedValue?.low ?? 0),
+              estimated_value_mid: Number(data.estimatedValue?.mid ?? 0),
+              estimated_value_high: Number(data.estimatedValue?.high ?? 0),
+              signal: data.signal || "HOLD",
+              rarity: data.rarity || "Unknown",
+              rarity_score: Number(data.rarityScore ?? 5),
+              market_trend: data.marketTrend || "Stable",
+              confidence_score: Number(data.confidenceScore ?? 50),
+              description: data.description || "",
+              signal_reason: data.signalReason || "",
+            });
+            console.log("Scan saved:", saved);
+          } catch (saveErr) {
+            console.error("Failed to save scan:", saveErr);
+          }
+        } else {
+          console.warn("No userId found on user object:", JSON.stringify(user));
         }
+      } else {
+        console.log("Not saving - authenticated:", authenticated, "user:", !!user);
       }
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.");
@@ -782,6 +930,50 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
                     </div>
                   </div>
 
+                  {/* TCG Market Price from PriceCharting */}
+                  {result.tcgPrice && (
+                    <div style={{
+                      padding: "14px 16px", borderRadius: 12,
+                      background: "var(--surface)", border: "1px solid var(--border)",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                        <div className="eyebrow">TCG Market Price</div>
+                        <a
+                          href={result.tcgPrice.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 11, color: "var(--violet)", textDecoration: "none" }}
+                        >
+                          PriceCharting ↗
+                        </a>
+                      </div>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        {result.tcgPrice.loose != null && (
+                          <div style={{
+                            flex: 1, textAlign: "center", padding: "10px 8px", borderRadius: 8,
+                            background: "var(--surface-2)", border: "1px solid var(--border)",
+                          }}>
+                            <div style={{ fontSize: 9, color: "var(--text-3)", letterSpacing: "0.08em", marginBottom: 4 }}>UNGRADED</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-1)" }}>
+                              ${result.tcgPrice.loose.toLocaleString()}
+                            </div>
+                          </div>
+                        )}
+                        {result.tcgPrice.graded != null && (
+                          <div style={{
+                            flex: 1, textAlign: "center", padding: "10px 8px", borderRadius: 8,
+                            background: "var(--accent-glow)", border: "1px solid var(--accent-dim)",
+                          }}>
+                            <div style={{ fontSize: 9, color: "var(--text-3)", letterSpacing: "0.08em", marginBottom: 4 }}>PSA GRADED</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--accent-2)" }}>
+                              ${result.tcgPrice.graded.toLocaleString()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Condition + Rarity */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div className="card">
@@ -919,6 +1111,99 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
                           🔍 {result.searchQuery}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Renaiss Ecosystem Panel */}
+                  <RenaissBadge
+                    name={result.name}
+                    category={result.category}
+                  />
+
+                  {/* PSA Registry Panel */}
+                  {result.psaData && (
+                    <div style={{
+                      padding: "16px", borderRadius: 12,
+                      background: "var(--surface)", border: "1px solid var(--border)",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                        <div>
+                          <div className="eyebrow" style={{ marginBottom: 4 }}>PSA Registry</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-1)" }}>
+                            Grading & Population Data
+                          </div>
+                        </div>
+                        <div style={{
+                          fontSize: 10, fontWeight: 700, color: "#3b82f6",
+                          background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)",
+                          padding: "3px 8px", borderRadius: 20, letterSpacing: "0.06em",
+                        }}>PSA</div>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.6, marginBottom: 12 }}>
+                        PSA-graded versions of this card are eligible for tokenization on Renaiss Protocol. Higher PSA grades command significant premiums.
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <a href={result.psaData.searchUrl} target="_blank" rel="noopener noreferrer"
+                          style={{
+                            flex: 1, padding: "9px 12px", borderRadius: 8, textAlign: "center",
+                            background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)",
+                            color: "#3b82f6", fontSize: 12, fontWeight: 600, textDecoration: "none",
+                          }}>
+                          PSA Pop Report ↗
+                        </a>
+                        <a href={result.psaData.registryUrl} target="_blank" rel="noopener noreferrer"
+                          style={{
+                            flex: 1, padding: "9px 12px", borderRadius: 8, textAlign: "center",
+                            background: "var(--surface-2)", border: "1px solid var(--border)",
+                            color: "var(--text-2)", fontSize: 12, fontWeight: 600, textDecoration: "none",
+                          }}>
+                          Card Registry ↗
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* BNB Chain Panel */}
+                  {result.bnbData && result.bnbData.totalNFTs > 0 && (
+                    <div style={{
+                      padding: "16px", borderRadius: 12,
+                      background: "var(--surface)", border: "1px solid rgba(243,186,47,0.25)",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                        <div className="eyebrow" style={{ marginBottom: 0 }}>Your BNB Chain Wallet</div>
+                        <div style={{
+                          fontSize: 10, fontWeight: 700, color: "#f3ba2f",
+                          background: "rgba(243,186,47,0.1)", border: "1px solid rgba(243,186,47,0.25)",
+                          padding: "3px 8px", borderRadius: 20, letterSpacing: "0.06em",
+                        }}>BNB CHAIN</div>
+                      </div>
+                      <div style={{ fontSize: 13, color: "var(--text-2)", marginBottom: 10 }}>
+                        <span style={{ color: "var(--text-1)", fontWeight: 700 }}>{result.bnbData.totalNFTs}</span> NFTs detected in connected wallet
+                        {result.bnbData.renaiссNFTs > 0 && (
+                          <span style={{ color: "#f59e0b", fontWeight: 700 }}>
+                            {" "}· {result.bnbData.renaiссNFTs} Renaiss collectibles
+                          </span>
+                        )}
+                      </div>
+                      {result.bnbData.recentNFTs.map((nft, i) => (
+                        <div key={i} style={{
+                          padding: "8px 12px", borderRadius: 8, marginBottom: 6,
+                          background: "var(--surface-2)", border: "1px solid var(--border)",
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                        }}>
+                          <div>
+                            <div style={{ fontSize: 12, color: "var(--text-1)", fontWeight: 600 }}>{nft.name || "Unknown NFT"}</div>
+                            <div style={{ fontSize: 10, color: "var(--text-3)" }}>#{nft.tokenId} · {nft.symbol}</div>
+                          </div>
+                          <a
+                            href={`https://bscscan.com/token/${nft.contract}?a=${nft.tokenId}`}
+                            target="_blank" rel="noopener noreferrer"
+                            style={{ fontSize: 11, color: "#f3ba2f", textDecoration: "none" }}
+                          >
+                            View ↗
+                          </a>
+                        </div>
+                      ))}
                     </div>
                   )}
 

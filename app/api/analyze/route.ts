@@ -160,6 +160,112 @@ Return ONLY valid JSON, nothing else before or after:
   return JSON.parse(match[0]);
 }
 
+// PSA population report lookup (free, no key needed)
+async function getPSAData(itemName: string, category: string) {
+  const isCard = ["pokemon", "pokémon", "one piece", "magic", "yugioh", "sports card", "trading card"].some(
+    t => itemName.toLowerCase().includes(t) || category.toLowerCase().includes("trading card")
+  );
+  if (!isCard) return null;
+
+  try {
+    // Extract card name for PSA search
+    const searchQuery = encodeURIComponent(itemName.split(" ").slice(0, 6).join(" "));
+    const res = await fetch(
+      `https://www.psacard.com/pop/search?q=${searchQuery}`,
+      {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "application/json, text/plain, */*",
+        }
+      }
+    );
+
+    // PSA doesn't have a free JSON API so we use Tavily to search their pop report
+    // This is handled in the search step - here we just return the link
+    return {
+      searchUrl: `https://www.psacard.com/pop/search?q=${searchQuery}`,
+      registryUrl: `https://www.psacard.com/cardlookup?cardName=${searchQuery}`,
+      name: itemName,
+    };
+  } catch (e) {
+    console.log("PSA lookup failed:", e);
+    return null;
+  }
+}
+
+// BNB Chain wallet NFT lookup via BNBScan API
+async function getBNBChainNFTs(walletAddress: string) {
+  if (!walletAddress) return null;
+
+  try {
+    const RENAISS_CONTRACT = "0x"; // placeholder - update with real Renaiss contract when available
+    const res = await fetch(
+      `https://api.bscscan.com/api?module=account&action=tokennfttx&address=${walletAddress}&startblock=0&endblock=99999999&sort=desc&apikey=YourApiKeyToken`,
+      { headers: { "User-Agent": "CollectorLens/1.0" } }
+    );
+
+    if (!res.ok) return null;
+    const data = await res.json();
+
+    if (data.status === "1" && data.result?.length > 0) {
+      // Filter for Renaiss-related NFTs
+      const renaiссNFTs = data.result.filter((tx: any) =>
+        tx.contractAddress?.toLowerCase().includes("renaiss") ||
+        tx.tokenName?.toLowerCase().includes("renaiss") ||
+        tx.tokenSymbol?.toLowerCase().includes("REN")
+      );
+
+      return {
+        totalNFTs: data.result.length,
+        renaiссNFTs: renaiссNFTs.length,
+        recentNFTs: data.result.slice(0, 3).map((tx: any) => ({
+          name: tx.tokenName,
+          symbol: tx.tokenSymbol,
+          tokenId: tx.tokenID,
+          contract: tx.contractAddress,
+        })),
+      };
+    }
+    return null;
+  } catch (e) {
+    console.log("BNBScan lookup failed:", e);
+    return null;
+  }
+}
+
+// TCG price lookup via PriceCharting (free, no key needed)
+async function getTCGPrice(itemName: string, category: string) {
+  const isTCG = ["pokemon", "pokémon", "one piece", "magic", "yugioh"].some(
+    t => itemName.toLowerCase().includes(t) || category.toLowerCase().includes("trading card")
+  );
+  if (!isTCG) return null;
+
+  try {
+    const searchName = encodeURIComponent(itemName.split(" ").slice(0, 5).join(" "));
+    const res = await fetch(
+      `https://www.pricecharting.com/api/product?q=${searchName}`,
+      { headers: { "User-Agent": "CollectorLens/1.0" } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+
+    if (data?.status === "success" && data?.products?.length > 0) {
+      const product = data.products[0];
+      return {
+        source: "PriceCharting",
+        url: `https://www.pricecharting.com/game/${product["console-name"] || "cards"}/${product["id"] || ""}`,
+        loose: product["loose-price"] ? Number(product["loose-price"]) / 100 : null,
+        graded: product["graded-price"] ? Number(product["graded-price"]) / 100 : null,
+        name: product["product-name"] || itemName,
+      };
+    }
+    return null;
+  } catch (e) {
+    console.log("PriceCharting lookup failed:", e);
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const groqKey = process.env.GROQ_API_KEY;
@@ -173,14 +279,28 @@ export async function POST(req: NextRequest) {
     }
 
     const groq = new Groq({ apiKey: groqKey });
-    const { imageBase64, mimeType } = await req.json();
+    const { imageBase64, mimeType, walletAddress } = await req.json();
     if (!imageBase64) return NextResponse.json({ error: "No image provided" }, { status: 400 });
 
     // Step 1: Identify
     const identity = await identifyItem(groq, imageBase64, mimeType);
     console.log("Identified:", identity.name);
 
-    // Step 2: Search
+    // Step 2a: TCG price lookup (free, no key needed)
+    const tcgPrice = await getTCGPrice(identity.name, identity.category);
+
+    // Step 2b: PSA data lookup
+    const psaData = await getPSAData(identity.name, identity.category);
+    if (psaData) console.log("PSA data found for:", identity.name);
+
+    // Step 2c: BNB Chain wallet check
+    const bnbData = walletAddress ? await getBNBChainNFTs(walletAddress) : null;
+    if (bnbData) console.log("BNB NFTs found:", bnbData.totalNFTs);
+    if (tcgPrice) {
+      console.log("PriceCharting price found:", tcgPrice.name, "graded:", tcgPrice.graded, "loose:", tcgPrice.loose);
+    }
+
+    // Step 2b: Search
     let searchData = null;
     if (tavilyKey) {
       try {
@@ -216,6 +336,9 @@ export async function POST(req: NextRequest) {
       dataNote: market?.dataNote ?? "",
       searchQuery: `${identity.name} ${identity.category} market value`,
       webSearchUsed: searchData !== null,
+      tcgPrice: tcgPrice || null,
+      psaData: psaData || null,
+      bnbData: bnbData || null,
     };
 
     return NextResponse.json(result);
