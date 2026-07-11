@@ -39,7 +39,10 @@ interface AnalysisResult {
   psaData?: {
     searchUrl: string;
     registryUrl: string;
+    renaisssSearchUrl: string;
     name: string;
+    psaPopulation?: { summary: string; sources: { name: string; url: string }[] } | null;
+    renaiссListings?: { summary: string; sources: { name: string; url: string }[] } | null;
   } | null;
   bnbData?: {
     totalNFTs: number;
@@ -1120,45 +1123,103 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
                     category={result.category}
                   />
 
-                  {/* PSA Registry Panel */}
+                  {/* PSA + Renaiss Marketplace Panel */}
                   {result.psaData && (
                     <div style={{
-                      padding: "16px", borderRadius: 12,
-                      background: "var(--surface)", border: "1px solid var(--border)",
+                      borderRadius: 14, overflow: "hidden",
+                      border: "1px solid rgba(59,130,246,0.2)",
+                      background: "var(--surface)",
                     }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                        <div>
-                          <div className="eyebrow" style={{ marginBottom: 4 }}>PSA Registry</div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-1)" }}>
-                            Grading & Population Data
-                          </div>
+                      {/* Header */}
+                      <div style={{
+                        padding: "12px 16px",
+                        borderBottom: "1px solid var(--border)",
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                      }}>
+                        <div className="eyebrow">PSA Grading + Renaiss Vault</div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, color: "#3b82f6",
+                            background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)",
+                            padding: "2px 7px", borderRadius: 20,
+                          }}>PSA</span>
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, color: "#f59e0b",
+                            background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)",
+                            padding: "2px 7px", borderRadius: 20,
+                          }}>RENAISS</span>
                         </div>
-                        <div style={{
-                          fontSize: 10, fontWeight: 700, color: "#3b82f6",
-                          background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)",
-                          padding: "3px 8px", borderRadius: 20, letterSpacing: "0.06em",
-                        }}>PSA</div>
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.6, marginBottom: 12 }}>
-                        PSA-graded versions of this card are eligible for tokenization on Renaiss Protocol. Higher PSA grades command significant premiums.
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <a href={result.psaData.searchUrl} target="_blank" rel="noopener noreferrer"
-                          style={{
-                            flex: 1, padding: "9px 12px", borderRadius: 8, textAlign: "center",
-                            background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)",
-                            color: "#3b82f6", fontSize: 12, fontWeight: 600, textDecoration: "none",
-                          }}>
-                          PSA Pop Report ↗
-                        </a>
-                        <a href={result.psaData.registryUrl} target="_blank" rel="noopener noreferrer"
-                          style={{
-                            flex: 1, padding: "9px 12px", borderRadius: 8, textAlign: "center",
-                            background: "var(--surface-2)", border: "1px solid var(--border)",
-                            color: "var(--text-2)", fontSize: 12, fontWeight: 600, textDecoration: "none",
-                          }}>
-                          Card Registry ↗
-                        </a>
+
+                      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+
+                        {/* PSA Population data from Tavily */}
+                        {result.psaData.psaPopulation ? (
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#3b82f6", marginBottom: 6 }}>
+                              📊 PSA Population & Grade Data
+                            </div>
+                            <div style={{
+                              fontSize: 12, color: "var(--text-2)", lineHeight: 1.65,
+                              padding: "10px 12px", borderRadius: 8,
+                              background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)",
+                            }}>
+                              {result.psaData.psaPopulation.summary}
+                            </div>
+                            {result.psaData.psaPopulation.sources.map((s, i) => (
+                              <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
+                                style={{ display: "block", fontSize: 11, color: "#3b82f6", marginTop: 6, textDecoration: "none" }}>
+                                {s.name} ↗
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.6 }}>
+                            PSA-graded versions are eligible for Renaiss vault tokenization on BNB Chain. Higher grades (PSA 9–10) command the strongest premiums.
+                          </div>
+                        )}
+
+                        {/* Renaiss marketplace listing data */}
+                        {result.psaData.renaiссListings && (
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", marginBottom: 6 }}>
+                              ◈ Renaiss Marketplace Activity
+                            </div>
+                            <div style={{
+                              fontSize: 12, color: "var(--text-2)", lineHeight: 1.65,
+                              padding: "10px 12px", borderRadius: 8,
+                              background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.15)",
+                            }}>
+                              {result.psaData.renaiссListings.summary}
+                            </div>
+                            {result.psaData.renaiссListings.sources.map((s, i) => (
+                              <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
+                                style={{ display: "block", fontSize: 11, color: "#f59e0b", marginTop: 6, textDecoration: "none" }}>
+                                {s.name} ↗
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* CTA links */}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <a href={result.psaData.searchUrl} target="_blank" rel="noopener noreferrer"
+                            style={{
+                              flex: 1, padding: "9px 12px", borderRadius: 8, textAlign: "center",
+                              background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)",
+                              color: "#3b82f6", fontSize: 11, fontWeight: 600, textDecoration: "none",
+                            }}>
+                            PSA Pop Report ↗
+                          </a>
+                          <a href={result.psaData.renaisssSearchUrl} target="_blank" rel="noopener noreferrer"
+                            style={{
+                              flex: 1, padding: "9px 12px", borderRadius: 8, textAlign: "center",
+                              background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
+                              color: "#f59e0b", fontSize: 11, fontWeight: 600, textDecoration: "none",
+                            }}>
+                            Find on Renaiss ↗
+                          </a>
+                        </div>
                       </div>
                     </div>
                   )}

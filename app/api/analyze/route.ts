@@ -160,37 +160,82 @@ Return ONLY valid JSON, nothing else before or after:
   return JSON.parse(match[0]);
 }
 
-// PSA population report lookup (free, no key needed)
-async function getPSAData(itemName: string, category: string) {
+// PSA + Renaiss marketplace search via Tavily
+async function getPSAAndRenaissData(tavilyKey: string | undefined, itemName: string, category: string) {
   const isCard = ["pokemon", "pokémon", "one piece", "magic", "yugioh", "sports card", "trading card"].some(
     t => itemName.toLowerCase().includes(t) || category.toLowerCase().includes("trading card")
   );
   if (!isCard) return null;
 
-  try {
-    // Extract card name for PSA search
-    const searchQuery = encodeURIComponent(itemName.split(" ").slice(0, 6).join(" "));
-    const res = await fetch(
-      `https://www.psacard.com/pop/search?q=${searchQuery}`,
-      {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "application/json, text/plain, */*",
+  const searchQuery = itemName.split(" ").slice(0, 6).join(" ");
+  const encodedQuery = encodeURIComponent(searchQuery);
+
+  // Base PSA links (always available)
+  const baseData = {
+    searchUrl: `https://www.psacard.com/pop/search?q=${encodedQuery}`,
+    registryUrl: `https://www.psacard.com/cardlookup?cardName=${encodedQuery}`,
+    renaisssSearchUrl: `https://www.renaiss.xyz/marketplace?search=${encodedQuery}`,
+    name: itemName,
+    psaPopulation: null as any,
+    renaiссListings: null as any,
+  };
+
+  // If Tavily available, search for real PSA pop data and Renaiss listings
+  if (tavilyKey) {
+    try {
+      const [psaSearch, renaissSearch] = await Promise.all([
+        fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: tavilyKey,
+            query: `"${searchQuery}" PSA graded population report grade 10 9 price 2024 2025`,
+            search_depth: "advanced",
+            max_results: 3,
+            include_answer: true,
+            include_domains: ["psacard.com", "pricecharting.com", "ebay.com"],
+          })
+        }),
+        fetch("https://api.tavily.com/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: tavilyKey,
+            query: `"${searchQuery}" renaiss.xyz marketplace listing price vault`,
+            search_depth: "advanced",
+            max_results: 3,
+            include_answer: true,
+          })
+        })
+      ]);
+
+      if (psaSearch.ok) {
+        const d = await psaSearch.json();
+        if (d.answer) {
+          baseData.psaPopulation = {
+            summary: d.answer,
+            sources: d.results?.slice(0, 2).map((r: any) => ({ name: r.title, url: r.url })) || [],
+          };
+          console.log("PSA data found:", d.answer.slice(0, 100));
         }
       }
-    );
 
-    // PSA doesn't have a free JSON API so we use Tavily to search their pop report
-    // This is handled in the search step - here we just return the link
-    return {
-      searchUrl: `https://www.psacard.com/pop/search?q=${searchQuery}`,
-      registryUrl: `https://www.psacard.com/cardlookup?cardName=${searchQuery}`,
-      name: itemName,
-    };
-  } catch (e) {
-    console.log("PSA lookup failed:", e);
-    return null;
+      if (renaissSearch.ok) {
+        const d = await renaissSearch.json();
+        if (d.answer && d.answer.length > 20) {
+          baseData.renaiссListings = {
+            summary: d.answer,
+            sources: d.results?.slice(0, 2).map((r: any) => ({ name: r.title, url: r.url })) || [],
+          };
+          console.log("Renaiss listing data:", d.answer.slice(0, 100));
+        }
+      }
+    } catch (e) {
+      console.log("PSA/Renaiss search failed:", e);
+    }
   }
+
+  return baseData;
 }
 
 // BNB Chain wallet NFT lookup via BNBScan API
@@ -289,9 +334,9 @@ export async function POST(req: NextRequest) {
     // Step 2a: TCG price lookup (free, no key needed)
     const tcgPrice = await getTCGPrice(identity.name, identity.category);
 
-    // Step 2b: PSA data lookup
-    const psaData = await getPSAData(identity.name, identity.category);
-    if (psaData) console.log("PSA data found for:", identity.name);
+    // Step 2b: PSA + Renaiss marketplace search
+    const psaData = await getPSAAndRenaissData(tavilyKey, identity.name, identity.category);
+    if (psaData) console.log("PSA/Renaiss data found for:", identity.name);
 
     // Step 2c: BNB Chain wallet check
     const bnbData = walletAddress ? await getBNBChainNFTs(walletAddress) : null;
