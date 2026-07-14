@@ -105,12 +105,21 @@ async function analyzeWithSearch(groq: Groq, identity: any, searchData: any) {
     messages: [
       {
         role: "system",
-        content: `You are a precise collectibles market analyst. Your valuations must be grounded in the provided source data.
-Rules:
-- Extract actual prices from source content when available — do not invent numbers
-- If sources show a price range, use the lowest as "low" and highest as "high"
-- Set confidenceScore based on source quality: real sold listings = 80-95, general estimates = 40-60
-- Sources must include the actual URLs from the data provided
+        content: `You are a strict collectibles market analyst. Your valuations MUST be grounded in the provided source data.
+
+CRITICAL RULES:
+- NEVER invent or hallucinate prices. Only use prices explicitly stated in the search results.
+- If no real price data is found, set estimatedValue to {"low": 0, "mid": 0, "high": 0} and confidenceScore below 30.
+- Extract EXACT prices from source content — do not round up or estimate beyond what is stated.
+- If sources show conflicting prices, use the most recent and most specific one.
+- PSA graded cards are worth significantly more than raw ungraded cards — always distinguish.
+- Set confidenceScore based on data quality:
+  - 85-95: Multiple recent sold listings found
+  - 65-84: 1-2 sold listings or price guides found  
+  - 40-64: General market estimates, no specific sold prices
+  - 10-39: No price data found, pure estimation
+- Always include a confidenceNote explaining the score — e.g. "Based on 3 recent eBay sold listings" or "No exact match found — estimated from similar PSA 9 cards" or "Image was unclear — identification may be inaccurate"
+- Always cite the actual source URL where the price was found
 - Be consistent: same item + same data = same output every time`
       },
       {
@@ -120,6 +129,9 @@ Rules:
 ITEM: ${identity.name}
 Category: ${identity.category}
 Type: ${["NFT","SBT","Digital Art"].some((t: string) => identity.category?.includes(t)) ? "Onchain/Digital Collectible" : "Physical Collectible"}
+PSA Grade: ${identity.psaGrade || "Not graded (raw card)"}
+PSA Cert: ${identity.psaCertNumber || "N/A"}
+Identification Confidence: ${identity.confidence || "medium"}
 Condition: ${identity.condition}
 Year: ${identity.year}
 
@@ -146,7 +158,8 @@ Return ONLY valid JSON, nothing else before or after:
     {"name": "descriptive source title", "url": "exact URL from search results"}
   ],
   "confidenceScore": 70,
-  "dataNote": "brief note on data quality e.g. based on 4 recent eBay sold listings"
+  "dataNote": "brief note on data quality e.g. based on 4 recent eBay sold listings",
+  "confidenceNote": "one honest sentence explaining this score — what data was found or why it is limited, and what the user should do to verify"
 }`
       }
     ]
@@ -367,6 +380,10 @@ export async function POST(req: NextRequest) {
       description: identity.description,
       condition: identity.condition,
       conditionNotes: identity.conditionNotes,
+      psaGrade: identity.psaGrade || null,
+      psaCertNumber: identity.psaCertNumber || null,
+      confidence: identity.confidence || "medium",
+      confidenceReason: identity.confidenceReason || null,
       estimatedValue: { ...(market?.estimatedValue ?? { low: 0, mid: 0, high: 0 }), currency: "USD" },
       rarity: market?.rarity ?? "Unknown",
       rarityScore: market?.rarityScore ?? 5,
@@ -379,6 +396,7 @@ export async function POST(req: NextRequest) {
       sources: market?.sources ?? [],
       confidenceScore: market?.confidenceScore ?? 40,
       dataNote: market?.dataNote ?? "",
+      confidenceNote: market?.confidenceNote ?? null,
       searchQuery: `${identity.name} ${identity.category} market value`,
       webSearchUsed: searchData !== null,
       tcgPrice: tcgPrice || null,

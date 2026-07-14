@@ -13,6 +13,11 @@ interface AnalysisResult {
   description: string;
   condition: string;
   conditionNotes: string;
+  psaGrade?: string | null;
+  psaCertNumber?: string | null;
+  confidence?: string;
+  confidenceReason?: string | null;
+  confidenceNote?: string | null;
   estimatedValue: { low: number; mid: number; high: number; currency: string };
   rarity: string;
   rarityScore: number;
@@ -893,17 +898,99 @@ function HomeInner({ dark, setDark }: { dark: boolean; setDark: (v: (d: boolean)
                     <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: "-0.03em", color: "var(--text-1)", marginBottom: 6 }}>
                       {result.name}
                     </div>
-                    <div style={{
-                      display: "inline-block", fontSize: 11, fontWeight: 600,
-                      color: "var(--violet)", background: "var(--violet-dim)",
-                      padding: "3px 10px", borderRadius: 20, marginBottom: 12,
-                      letterSpacing: "0.04em",
-                    }}>
-                      {result.category}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                      <div style={{
+                        display: "inline-block", fontSize: 11, fontWeight: 600,
+                        color: "var(--violet)", background: "var(--violet-dim)",
+                        padding: "3px 10px", borderRadius: 20,
+                        letterSpacing: "0.04em",
+                      }}>
+                        {result.category}
+                      </div>
+                      {result.psaGrade && (
+                        <div style={{
+                          display: "inline-block", fontSize: 11, fontWeight: 800,
+                          color: "#fff", background: "#1e40af",
+                          padding: "3px 10px", borderRadius: 20,
+                          letterSpacing: "0.04em",
+                        }}>
+                          PSA {result.psaGrade}
+                        </div>
+                      )}
+                      {(result.confidence === "low" || result.confidence === "medium") && (
+                        <div style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          fontSize: 11, fontWeight: 600,
+                          color: result.confidence === "low" ? "var(--amber)" : "var(--text-3)",
+                          background: result.confidence === "low" ? "var(--amber-bg)" : "var(--surface-2)",
+                          border: `1px solid ${result.confidence === "low" ? "var(--amber-bd)" : "var(--border)"}`,
+                          padding: "3px 10px", borderRadius: 20,
+                          letterSpacing: "0.04em",
+                        }}>
+                          {result.confidence === "low" ? "⚠" : "◎"} {result.confidence === "low" ? "Low" : "Medium"} confidence
+                        </div>
+                      )}
                     </div>
                     <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.7 }}>
                       {result.description}
                     </div>
+
+                    {/* Confidence explanation */}
+                    {(result.confidenceReason || result.confidenceNote) && (
+                      <div style={{
+                        marginTop: 12, padding: "10px 14px", borderRadius: 10,
+                        background: result.confidence === "low"
+                          ? "var(--amber-bg)"
+                          : result.confidence === "high"
+                          ? "var(--green-bg)"
+                          : "var(--surface-2)",
+                        border: `1px solid ${result.confidence === "low"
+                          ? "var(--amber-bd)"
+                          : result.confidence === "high"
+                          ? "var(--green-bd)"
+                          : "var(--border)"}`,
+                        display: "flex", flexDirection: "column", gap: 8,
+                      }}>
+                        {result.confidenceReason && (
+                          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                            <span style={{ fontSize: 13, flexShrink: 0 }}>
+                              {result.confidence === "low" ? "⚠" : result.confidence === "high" ? "✓" : "◎"}
+                            </span>
+                            <div>
+                              <div style={{
+                                fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                                textTransform: "uppercase", marginBottom: 3,
+                                color: result.confidence === "low" ? "var(--amber)"
+                                  : result.confidence === "high" ? "var(--green)"
+                                  : "var(--text-3)",
+                              }}>
+                                ID Confidence · {result.confidence}
+                              </div>
+                              <div style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.6 }}>
+                                {result.confidenceReason}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {result.confidenceNote && (
+                          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                            <span style={{ fontSize: 13, flexShrink: 0 }}>📊</span>
+                            <div>
+                              <div style={{
+                                fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                                textTransform: "uppercase", marginBottom: 3,
+                                color: "var(--text-3)",
+                              }}>
+                                Valuation Confidence
+                              </div>
+                              <div style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.6 }}>
+                                {result.confidenceNote}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Valuation */}
