@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
+import OpenAI from "openai";
 
-// Step 1: Identify collectible using Groq vision
-async function identifyItem(groq: Groq, imageBase64: string, mimeType: string) {
-  const response = await groq.chat.completions.create({
-    model: "meta-llama/llama-4-scout-17b-16e-instruct",
+
+// Step 1: Identify collectible using OpenRouter vision
+async function identifyItem(openrouter: OpenAI, imageBase64: string, mimeType: string) {
+  const response = await openrouter.chat.completions.create({
+    model: "google/gemma-4-26b-a4b-it:free",  // ✅ FREE vision model
     max_tokens: 600,
-    temperature: 0.1, // near-deterministic
     messages: [{
       role: "user",
       content: [
@@ -25,6 +26,7 @@ Reply with ONLY valid JSON, no other text before or after:
     }]
   });
 
+
   const raw = response.choices[0]?.message?.content ?? "";
   console.log("Vision:", raw.slice(0, 200));
   const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -32,6 +34,7 @@ Reply with ONLY valid JSON, no other text before or after:
   if (!match) throw new Error("Vision model did not return valid JSON");
   return JSON.parse(match[0]);
 }
+
 
 // Step 2: Tavily web search — get raw results with URLs
 async function searchMarketData(tavilyKey: string, itemName: string, category: string) {
@@ -66,8 +69,10 @@ async function searchMarketData(tavilyKey: string, itemName: string, category: s
     })
   ]);
 
+
   const results: any[] = [];
   let combinedAnswer = "";
+
 
   if (priceSearch.ok) {
     const d = await priceSearch.json();
@@ -84,10 +89,12 @@ async function searchMarketData(tavilyKey: string, itemName: string, category: s
     }
   }
 
+
   console.log("Tavily combined answer:", combinedAnswer.slice(0, 300));
   console.log("Tavily sources:", results.map((r: any) => r.url));
   return { answer: combinedAnswer, results };
 }
+
 
 // Step 3: Analyze search data into final structured valuation
 async function analyzeWithSearch(groq: Groq, identity: any, searchData: any) {
@@ -96,6 +103,7 @@ async function analyzeWithSearch(groq: Groq, identity: any, searchData: any) {
         `Source: ${r.title} (${r.url})\nContent: ${r.content?.slice(0, 200)}`
       ).join("\n\n")
     : "No web sources available.";
+
 
   const response = await groq.chat.completions.create({
     model: "llama-3.3-70b-versatile",
@@ -106,6 +114,7 @@ async function analyzeWithSearch(groq: Groq, identity: any, searchData: any) {
       {
         role: "system",
         content: `You are a strict collectibles market analyst. Your valuations MUST be grounded in the provided source data.
+
 
 CRITICAL RULES:
 - NEVER invent or hallucinate prices. Only use prices explicitly stated in the search results.
@@ -126,6 +135,7 @@ CRITICAL RULES:
         role: "user",
         content: `Analyze this collectible and provide a market valuation.
 
+
 ITEM: ${identity.name}
 Category: ${identity.category}
 Type: ${["NFT","SBT","Digital Art"].some((t: string) => identity.category?.includes(t)) ? "Onchain/Digital Collectible" : "Physical Collectible"}
@@ -135,11 +145,14 @@ Identification Confidence: ${identity.confidence || "medium"}
 Condition: ${identity.condition}
 Year: ${identity.year}
 
+
 SEARCH RESULTS:
 ${searchData?.answer || "No direct answer available."}
 
+
 SOURCE DETAILS:
 ${sourceContext}
+
 
 Return ONLY valid JSON, nothing else before or after:
 {
@@ -165,6 +178,7 @@ Return ONLY valid JSON, nothing else before or after:
     ]
   });
 
+
   const raw = response.choices[0]?.message?.content ?? "";
   console.log("Analysis:", raw.slice(0, 300));
   const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -173,6 +187,7 @@ Return ONLY valid JSON, nothing else before or after:
   return JSON.parse(match[0]);
 }
 
+
 // PSA + Renaiss marketplace search via Tavily
 async function getPSAAndRenaissData(tavilyKey: string | undefined, itemName: string, category: string) {
   const isCard = ["pokemon", "pokémon", "one piece", "magic", "yugioh", "sports card", "trading card"].some(
@@ -180,8 +195,10 @@ async function getPSAAndRenaissData(tavilyKey: string | undefined, itemName: str
   );
   if (!isCard) return null;
 
+
   const searchQuery = itemName.split(" ").slice(0, 6).join(" ");
   const encodedQuery = encodeURIComponent(searchQuery);
+
 
   // Base PSA links (always available)
   const baseData = {
@@ -192,6 +209,7 @@ async function getPSAAndRenaissData(tavilyKey: string | undefined, itemName: str
     psaPopulation: null as any,
     renaiссListings: null as any,
   };
+
 
   // If Tavily available, search for real PSA pop data and Renaiss listings
   if (tavilyKey) {
@@ -222,6 +240,7 @@ async function getPSAAndRenaissData(tavilyKey: string | undefined, itemName: str
         })
       ]);
 
+
       if (psaSearch.ok) {
         const d = await psaSearch.json();
         if (d.answer) {
@@ -232,6 +251,7 @@ async function getPSAAndRenaissData(tavilyKey: string | undefined, itemName: str
           console.log("PSA data found:", d.answer.slice(0, 100));
         }
       }
+
 
       if (renaissSearch.ok) {
         const d = await renaissSearch.json();
@@ -248,12 +268,15 @@ async function getPSAAndRenaissData(tavilyKey: string | undefined, itemName: str
     }
   }
 
+
   return baseData;
 }
+
 
 // BNB Chain wallet NFT lookup via BNBScan API
 async function getBNBChainNFTs(walletAddress: string) {
   if (!walletAddress) return null;
+
 
   try {
     const RENAISS_CONTRACT = "0x"; // placeholder - update with real Renaiss contract when available
@@ -262,8 +285,10 @@ async function getBNBChainNFTs(walletAddress: string) {
       { headers: { "User-Agent": "CollectorLens/1.0" } }
     );
 
+
     if (!res.ok) return null;
     const data = await res.json();
+
 
     if (data.status === "1" && data.result?.length > 0) {
       // Filter for Renaiss-related NFTs
@@ -272,6 +297,7 @@ async function getBNBChainNFTs(walletAddress: string) {
         tx.tokenName?.toLowerCase().includes("renaiss") ||
         tx.tokenSymbol?.toLowerCase().includes("REN")
       );
+
 
       return {
         totalNFTs: data.result.length,
@@ -291,12 +317,14 @@ async function getBNBChainNFTs(walletAddress: string) {
   }
 }
 
+
 // TCG price lookup via PriceCharting (free, no key needed)
 async function getTCGPrice(itemName: string, category: string) {
   const isTCG = ["pokemon", "pokémon", "one piece", "magic", "yugioh"].some(
     t => itemName.toLowerCase().includes(t) || category.toLowerCase().includes("trading card")
   );
   if (!isTCG) return null;
+
 
   try {
     const searchName = encodeURIComponent(itemName.split(" ").slice(0, 5).join(" "));
@@ -306,6 +334,7 @@ async function getTCGPrice(itemName: string, category: string) {
     );
     if (!res.ok) return null;
     const data = await res.json();
+
 
     if (data?.status === "success" && data?.products?.length > 0) {
       const product = data.products[0];
@@ -324,10 +353,13 @@ async function getTCGPrice(itemName: string, category: string) {
   }
 }
 
+
 export async function POST(req: NextRequest) {
   try {
     const groqKey = process.env.GROQ_API_KEY;
     const tavilyKey = process.env.TAVILY_API_KEY;
+    const openrouterKey = process.env.OPENROUTER_API_KEY;
+
 
     if (!groqKey) {
       return NextResponse.json(
@@ -336,20 +368,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!openrouterKey) {
+      return NextResponse.json(
+        { error: "OPENROUTER_API_KEY not configured in .env.local" },
+        { status: 500 }
+      );
+    }
+
+
+    // Initialize OpenRouter with custom base URL
+    const openrouter = new OpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: openrouterKey,
+    });
+
     const groq = new Groq({ apiKey: groqKey });
     const { imageBase64, mimeType, walletAddress } = await req.json();
     if (!imageBase64) return NextResponse.json({ error: "No image provided" }, { status: 400 });
 
-    // Step 1: Identify
-    const identity = await identifyItem(groq, imageBase64, mimeType);
+
+    // Step 1: Identify using OpenRouter vision
+    const identity = await identifyItem(openrouter, imageBase64, mimeType);
     console.log("Identified:", identity.name);
+
 
     // Step 2a: TCG price lookup (free, no key needed)
     const tcgPrice = await getTCGPrice(identity.name, identity.category);
 
+
     // Step 2b: PSA + Renaiss marketplace search
     const psaData = await getPSAAndRenaissData(tavilyKey, identity.name, identity.category);
     if (psaData) console.log("PSA/Renaiss data found for:", identity.name);
+
 
     // Step 2c: BNB Chain wallet check
     const bnbData = walletAddress ? await getBNBChainNFTs(walletAddress) : null;
@@ -357,6 +407,7 @@ export async function POST(req: NextRequest) {
     if (tcgPrice) {
       console.log("PriceCharting price found:", tcgPrice.name, "graded:", tcgPrice.graded, "loose:", tcgPrice.loose);
     }
+
 
     // Step 2b: Search
     let searchData = null;
@@ -368,8 +419,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+
     // Step 3: Analyze
     const market = await analyzeWithSearch(groq, identity, searchData);
+
 
     const result = {
       identified: identity.identified ?? true,
@@ -403,6 +456,7 @@ export async function POST(req: NextRequest) {
       psaData: psaData || null,
       bnbData: bnbData || null,
     };
+
 
     return NextResponse.json(result);
   } catch (error: any) {
